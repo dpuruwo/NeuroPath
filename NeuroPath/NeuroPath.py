@@ -139,9 +139,6 @@ class NeuroPathWidget(ScriptedLoadableModuleWidget):
     inputsFormLayout.addRow("Tractography Fiber Bundle: ", self.tractographyFibreBundleSelector)
     self.tractographyFibreBundleSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onFiberBundleChanged)
 
-    #
-    # ROI Selector
-    #
     self.roiSelector = slicer.qMRMLNodeComboBox()
     self.roiSelector.nodeTypes = ["vtkMRMLAnnotationROINode"]
     self.roiSelector.selectNodeUponCreation = True
@@ -220,7 +217,7 @@ class NeuroPathWidget(ScriptedLoadableModuleWidget):
     # Create cylinder and sphere from selected fiducials
     cylinderTop = [0,0,0]
     cylinderBottom = [0,0,0]
-    sphereFiducial = [0,0,0]
+    sphereOrigin = [0,0,0]
     markupNode = self.modelPointsSelector.currentNode()
     if markupNode.GetNumberOfMarkups() < 3:
       print("Markup node is invalid. Needs at least 3 points.")
@@ -228,9 +225,9 @@ class NeuroPathWidget(ScriptedLoadableModuleWidget):
 
     markupNode.GetNthFiducialPosition(0, cylinderTop)
     markupNode.GetNthFiducialPosition(1, cylinderBottom)
-    markupNode.GetNthFiducialPosition(2, sphereFiducial)
+    markupNode.GetNthFiducialPosition(2, sphereOrigin)
 
-    self.logic.computeModels(cylinderTop, cylinderBottom, self.qSlider_CylinderRadius.value, self.qSlider_CylinderHeight.value, sphereFiducial, self.qSlider_SphereRadius.value)
+    self.logic.computeModels(cylinderTop, cylinderBottom, self.qSlider_CylinderRadius.value, self.qSlider_CylinderHeight.value, sphereOrigin, self.qSlider_SphereRadius.value)
 
   def cleanup(self):
     pass
