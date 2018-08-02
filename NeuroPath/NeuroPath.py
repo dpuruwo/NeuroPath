@@ -42,7 +42,8 @@ class NeuroPath(ScriptedLoadableModule):
 #
 # NeuroPathWidget
 #
- 
+  
+
 class NeuroPathWidget(ScriptedLoadableModuleWidget):
   """Uses ScriptedLoadableModuleWidget base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
@@ -50,20 +51,20 @@ class NeuroPathWidget(ScriptedLoadableModuleWidget):
  
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
- 
-    # Instantiate and connect widgets ...
- 
+
     #
     # Parameters Area
     #
     parametersCollapsibleButton = ctk.ctkCollapsibleButton()
     parametersCollapsibleButton.text = "Parameters"
+    parametersCollapsibleButton.collapsed = False
+    self.parametersList = parametersCollapsibleButton
     self.layout.addWidget(parametersCollapsibleButton)
  
     # Layout within the dummy collapsible button
     parametersFormLayout = qt.QFormLayout(parametersCollapsibleButton)
     #
-    # Fiducial  Selector
+    # Fiducial  List
     #
     self.ROISelector = slicer.qMRMLNodeComboBox()
     self.ROISelector.nodeTypes = ["vtkMRMLMarkupsFiducialNode"]
@@ -75,7 +76,7 @@ class NeuroPathWidget(ScriptedLoadableModuleWidget):
     self.ROISelector.showChildNodeTypes = False
     self.ROISelector.setMRMLScene( slicer.mrmlScene )
     self.ROISelector.setToolTip( "Pick List of Markups Start & Targets" )
-    parametersFormLayout.addRow("Fiducial : ", self.ROISelector)
+    parametersFormLayout.addRow("Fiducial List", self.ROISelector)
     self.ROISelector.connect("currentNodeChanged(vtkMRMLNode*)", self.OnSelect_ROI)
 
   #
@@ -115,7 +116,7 @@ class NeuroPathWidget(ScriptedLoadableModuleWidget):
     self.SliderCylinder.minimum = 0
     self.SliderCylinder.maximum = 20
     self.SliderCylinder.value = 7.5
-    self.SliderCylinder.setToolTip("Set threshold value for computing the output image. Voxels that have intensities lower than this value will set to zero.")
+    self.SliderCylinder.setToolTip("Cylinder Radius")
     self.SliderCylinder.valueChanged.connect(self.onSliderChange)
     parametersFormLayout.addRow("Cylinder Radius", self.SliderCylinder)
 
@@ -127,7 +128,7 @@ class NeuroPathWidget(ScriptedLoadableModuleWidget):
     self.SliderCylinder_2.minimum = 5
     self.SliderCylinder_2.maximum = 120
     self.SliderCylinder_2.value = 30
-    self.SliderCylinder_2.setToolTip("Set threshold value for computing the output image. Voxels that have intensities lower than this value will set to zero.")
+    self.SliderCylinder_2.setToolTip("Cylinder Height")
     self.SliderCylinder_2.valueChanged.connect(self.onSliderChange)
     parametersFormLayout.addRow("Cylinder Height", self.SliderCylinder_2)
 
@@ -146,6 +147,23 @@ class NeuroPathWidget(ScriptedLoadableModuleWidget):
     self.ROISelector_2.setToolTip( "Pick the ROI Interactive Box to define the region for labeling of Fibers." )
     parametersFormLayout.addRow("ROI for Labeling: ", self.ROISelector_2)
     self.ROISelector_2.connect("currentNodeChanged(vtkMRMLNode*)", self.OnSelect_OptBox)
+
+    #
+    # Input the Labeled Volume (???)
+    #
+    self.Label = slicer.qMRMLNodeComboBox()
+    self.Label.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+    self.Label.selectNodeUponCreation = True
+    self.Label.addEnabled = False
+    self.Label.removeEnabled = False
+    self.Label.noneEnabled = True
+    self.Label.showHidden = False
+    self.Label.showChildNodeTypes = False
+    self.Label.setMRMLScene( slicer.mrmlScene )
+    self.Label.setToolTip( "Pick the Atlas-based Segmented Brain Volume." )
+    parametersFormLayout.addRow("Input the Atlas Labeled Volume: ", self.Label)
+    self.Label.connect("currentNodeChanged(vtkMRMLNode*)", self.OnSelect_label) # missing self.OnSelect_label function
+  #
   
 
   def onSliderChange(self):
@@ -153,12 +171,12 @@ class NeuroPathWidget(ScriptedLoadableModuleWidget):
       R_sphere =  self.SliderSphere.value
       R_cylinder = self.SliderCylinder.value
       H_cylinder = self.SliderCylinder_2.value
-
+      #logic.run_7()
 
   ## Uses Fiducial Selector, Sphere, Cylinder Radius & Cylynder Height
   def OnSelect_ROI(self):
 
-  ## Supposed to get the sphere to be at fiudcial 3 and the cylinder between fiducial 1 and fiducial 2
+     ## Supposed to get the sphere to be at fiudcial 3 and the cylinder between fiducial 1 and fiducial 2
       global ft12,markupNode,sphere,cylinder,logic, plane,model_C, model_S, transF
       logic = NeuroPathLogic()
       fiducial1 = [0,0,0] 
@@ -173,13 +191,15 @@ class NeuroPathWidget(ScriptedLoadableModuleWidget):
       #print fttwo
       #print fss 
      
-      ## not sure this is necessary since its already defined at onSliderChange
+      ## updates sphere and cylinder values
       R_sphere =  self.SliderSphere.value
       R_cylinder = self.SliderCylinder.value
       H_cylinder = self.SliderCylinder_2.value
       
-      #----------------------------
+      
+      #
       #creates an array
+      #
       f1 = np.array(fiducial1)   #former ft1
       f2 = np.array(fiducial2)   #former ft2
       f3 = np.array(fiducial3)   #former fs
@@ -187,7 +207,10 @@ class NeuroPathWidget(ScriptedLoadableModuleWidget):
       Y_axis = np.array([0,1,0])
       C_Cent = ((f1+f2)/2) 
      
-      #------------------------------
+      #
+      ##
+      #
+
       sphere = vtk.vtkSphereSource()
       sphere.SetCenter(f3) # Set the center of the sphere.
       sphere.SetThetaResolution(30) #set the number of points in the longitude direction
@@ -224,10 +247,12 @@ class NeuroPathWidget(ScriptedLoadableModuleWidget):
       cylinder.SetResolution(100)
       cylinder.CappingOff()
 
+      ## not sure what these transformations are supposed to do
       Transform = vtk.vtkTransform()
       Transform.PostMultiply()
       Transform.Translate(-C_Cent[0],-C_Cent[1],-C_Cent[2])
-      #Transform.RotateWXYZ(-1*np.degrees(logic.py_ang(deltaf1f2,Y_axis)),np.cross(deltaf1f2,Y_axis))
+      #np.degrees converts radians to degrees
+      Transform.RotateWXYZ(-1*np.degrees(logic.py_ang(deltaf1f2,Y_axis)),np.cross(deltaf1f2,Y_axis))
       Transform.Translate(C_Cent[0],C_Cent[1],C_Cent[2])
       transF = vtk.vtkTransformPolyDataFilter()
       transF.SetInputConnection(cylinder.GetOutputPort())
@@ -247,6 +272,9 @@ class NeuroPathWidget(ScriptedLoadableModuleWidget):
       model_S.GetDisplayNode().SetColor(0,1,0)
       model_S.SetName('Sphere')
 
+  def cleanup(self):
+    pass 
+
   ### holds the ROI coordinates found in Annotation Properities
   def OnSelect_OptBox(self):
     global bounds,markupNode_2
@@ -256,6 +284,10 @@ class NeuroPathWidget(ScriptedLoadableModuleWidget):
      #print bounds
 
   def OnSelect_label(self): # For loading input label, two main purposes generating grid and model handling
+    # GetDimentions: number of points on each axis
+    # imageCastLabel_A gets used in run_3, inPtr2  
+    #labeldims also in run_3
+    logic = NeuroPathLogic()
     self.logic.setAtlasImage(self.InputLabel_A.curretNode())
     
     global InputLabel_A,imageRec_Buck,imageCastLabel_A,imageRec_Box
@@ -263,11 +295,16 @@ class NeuroPathWidget(ScriptedLoadableModuleWidget):
     imageRec_Buck = vtk.vtkImageCast()
     imageRec_Buck.SetInputData(InputLabel_A.GetImageData())
     imageRec_Buck.Update()
+    
     labelDims = imageRec_Buck.GetOutput().GetDimensions()
+    print labelDims
+    
     imageCastLabel_A = vtk.vtkImageCast()# image dedicated for model handling
     imageCastLabel_A.SetInputData(InputLabel_A.GetImageData())
     imageCastLabel_A.Update()
 
+
+  
   def OnSelect_Rec_Buck(self):# For generating grid image
     global a,b,c,space,labelDims,Rec_Buck_node,trans
     Rec_Buck_node = self.Rec_Buck.currentNode()
@@ -303,7 +340,7 @@ class NeuroPathWidget(ScriptedLoadableModuleWidget):
     Label_A_RASToIJK = vtk.vtkMatrix4x4()
     Rec_Buck_node.GetRASToIJKMatrix(Label_A_RASToIJK)
     trans = vtk.vtkTransform()
-    trans.Identity()
+    trans.Identity     
     trans.PreMultiply()
     trans.SetMatrix(Label_A_RASToIJK)
     space = 5
@@ -524,9 +561,23 @@ class NeuroPathLogic(ScriptedLoadableModuleLogic):
     f=open(Directory_name+'/Aparc3', 'rb') # FC Absolute value of the Atlas regions
     Aparc3 = map(float,f.read().split())
 
+  def py_ang(self,v1, v2): # ask Dr. Eagleson
+   # measure euclidian distance between y axis and deltaf1f2 (fiducial 1 - fiducial 2)
+  # then cross product normalized 
+  #the cross product can be thought of as a measure of perpendicularity in the same way that the dot product is a measure of parallelism.
+
+  # v1 is (deltaf1f2)
+  # v2 is Y_axis ->  Y_axis = np.array([0,1,0])
+
+  # product of the Euclidean magnitudes of the two vectors;
+  # v1 . v2 = v1v2cos(angle between) # measure "how much" one vector lies along another
+    cosang = np.dot(v1, v2) 
+
+   #normalize magnitude (or length) of deltaf1f2 and Y_axis vectors
+    sinang = la.norm(np.cross(v1, v2)) 
+    return np.arctan2(sinang, cosang)
 
   
-
 ### LEFT HERE
   def run_4(self): # Calculating and saving Mem_array, Mem_points and Label_LUT 
     global Mem_array, Mem_points, Label_LUT,trans
